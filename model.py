@@ -55,22 +55,14 @@ class PositionalEmbedding(nn.Module):
     x = x + (self.pe[:, :x.shape[1], :]).requires_grad_(False)
     return self.dropout(x)
   
-
-# Here we could have used nn.LayerNorm class but its constructor
-# requires the normalization dimension sizes at instantiation.
-# As this layer can be a part of any block, we cannot know that 
-# in advance, so we calculate the layer norm on the fly
+  
 class LayerNorm(nn.Module):
   def __init__(self, eps: float = 1e-5) -> None:
     super().__init__()
     self.eps = eps
-    self.alpha = nn.Parameter(torch.ones(1))
-    self.bias = nn.Parameter(torch.zeros(1))
 
   def forward(self, x):
-    mean = x.mean(dim=-1, keepdim=True)
-    std = x.std(dim=-1, keepdim=True)
-    return (self.alpha * (x - mean) / (std + self.eps)) + self.bias
+    return F.layer_norm(x, normalized_shape=[x.shape[-1]], eps=self.eps)
 
 
 class FeedForward(nn.Module):
