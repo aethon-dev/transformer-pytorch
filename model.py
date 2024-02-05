@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import math
 
 class InputEmbedding(nn.Module):
@@ -37,7 +38,7 @@ class PositionalEmbedding(nn.Module):
     pe[:, 0::2] = torch.sin(positions * div_term)
     pe[:, 1::2] = torch.cos(positions * div_term)
 
-    # Add batch dimention to the encodings to make it of shape (1 x seq_len x d_model)
+    # Add batch dimension to the encodings to make it of shape (1 x seq_len x d_model)
     # This way it will broadcast to the entire batch of x
     pe = pe.unsqueeze(0)
 
@@ -56,7 +57,7 @@ class PositionalEmbedding(nn.Module):
   
 
 # Here we could have used nn.LayerNorm class but its constructor
-# requires the normalization dimention sizes at instantiation.
+# requires the normalization dimension sizes at instantiation.
 # As this layer can be a part of any block, we cannot know that 
 # in advance, so we calculate the layer norm on the fly
 class LayerNorm(nn.Module):
@@ -81,3 +82,53 @@ class FeedForward(nn.Module):
 
   def forward(self, x):
     return self.linear2(self.dropout(torch.relu(self.linear1(x))))
+  
+
+class MultiHeadAttention(nn.Module):
+  def __init__(self, d_model: int, h: int, dropout: float) -> None:
+    super().__init__()
+    assert d_model % h == 0, "d_model is not divisible by h"
+
+    self.d_model = d_model
+    self.h = h
+    self.d_k = d_model // h
+
+    self.w_q = nn.Linear(d_model, d_model)
+    self.w_k = nn.Linear(d_model, d_model)
+    self.w_v = nn.Linear(d_model, d_model)
+    self.w_o = nn.Linear(d_model, d_model)
+    self.dropout = nn.Dropout(dropout)
+
+  @staticmethod
+  def attention(query, key, value, mask, d_k: int, dropout: nn.Dropout):
+    # This produces (batch x h x seq_len x seq_len)
+    attn_scores = (query @ key.transpose(-2, -1)) / math.sqrt(d_k)
+    
+    if mask is not None:
+      attn_scores.masked_fill_(mask == 0, -1e9)
+
+    attn_scores = F.softmax(attn_scores, dim=-1)
+
+    if dropout is not None:
+      attn_scores = dropout(attn_scores)
+
+    return (attn_scores @ value), attn_scores
+
+
+
+  def forward(self, q, k, v, mask):
+    # Break the embedding dimension into h number of heads and reorder the matrices
+    # so that the for each head there is a (seq_len x d_k) tensor
+    # (batch x seq_len x d_model) --> (batch x seq_len x d_model) --> (batch x seq_len x h x d_k)
+    # --> (batch x h x seq_len x d_k)
+    query = self.w_q(q).view(q.shape[0], q.shape[1], self.h, self.d_k).transpose(1, 2)
+    key = self.w_k(k).view(k.shape[0], k.shape[1], self.h, self.d_k).transpose(1, 2)
+    value = self.w_v(v).view(v.shape[0], v.shape[1], self.h, self.d_k).transpose(1, 2)
+
+    x, self.attn_scores = MultiHeadAttention.attention(query, key, value, mask, self.d_k, self.dropout)
+
+    # Reorganize output to the shape (batch x seq_len x d_model)
+    # We use x.contiguous() to make sure the entire x is in contiguous memory
+    x = x.transpose(1, 2).contiguous().view(x.shape[0], -1, self.h * self.d_k)
+
+    return self.w_o(x)
