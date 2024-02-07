@@ -21,7 +21,7 @@ class BilingualDataset(Dataset):
   def __len__(self):
     return len(self.ds)
     
-  def __getitem__(self, index) -> Any:
+  def __getitem__(self, index):
     src_tgt_pair = self.ds[index]
     src_text = src_tgt_pair['translation'][self.lang_src]
     tgt_text = src_tgt_pair['translation'][self.lang_tgt]
