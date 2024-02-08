@@ -10,7 +10,7 @@ class InputEmbedding(nn.Module):
     self.embedding = nn.Embedding(vocab_size, d_model)
 
   def forward(self, x):
-    return self.embedding * math.sqrt(self.d_model)
+    return self.embedding(x) * math.sqrt(self.d_model)
   
 
 class PositionalEmbedding(nn.Module):
@@ -239,7 +239,7 @@ def build_transformer(src_vocab_size: int, tgt_vocab_size: int, src_seq_len: int
   tgt_embed = InputEmbedding(d_model, tgt_vocab_size)
 
   # Create positional embedding layer
-  pos_embed = PositionalEmbedding(d_model, math.max(src_seq_len, tgt_seq_len))
+  pos_embed = PositionalEmbedding(d_model, max(src_seq_len, tgt_seq_len), dropout)
 
   # Create encoder blocks
   encoder_blocks = []
