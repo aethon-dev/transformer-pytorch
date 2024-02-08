@@ -86,7 +86,7 @@ def train_model(config):
 
   # Prepare dataset and the model
   train_loader, val_loader, tokenizer_src, tokenizer_tgt = get_ds(config)
-  model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size())
+  model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size()).to(device)
 
   # Setup Tensorboard
   writer = SummaryWriter(config['experiment_name'])
